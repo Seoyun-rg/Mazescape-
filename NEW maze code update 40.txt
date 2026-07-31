@@ -1,0 +1,1731 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>SGX :: Mazescape</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #3a424d;
+            font-family: 'Orbitron', sans-serif;
+            color: #FFFFFF;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 0;
+        }
+
+        /* EFECTO DE DAÑO EN ROJO */
+        #damage-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 0, 0, 0.4);
+            z-index: 15;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.1s ease-in-out;
+        }
+
+        #damage-overlay.active {
+            opacity: 1;
+        }
+
+        .hud-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: clamp(10px, 2vw, 20px);
+        }
+
+        .hud-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .hud-left-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .hud-center {
+            display: flex;
+            gap: 15px;
+            align-items: flex-start;
+        }
+
+        .hud-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            width: 100%;
+            gap: 20px;
+        }
+
+        /* PANEL DE VIDA */
+        .health-image-panel {
+            position: relative;
+            width: 180px;
+            height: 70px;
+            background-image: url("https://static.wixstatic.com/media/05967e_a96fecfaa6e8400f891f824466c8826c~mv2.png");
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            pointer-events: auto;
+        }
+
+        .hearts-container {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            padding-top: 2px;
+        }
+
+        .heart-icon {
+            width: 38px;
+            height: 38px;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23FF2A2A'><path d='M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z'/></svg>");
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            filter: drop-shadow(0 0 5px rgba(255, 42, 42, 0.8));
+            transition: all 0.3s ease;
+        }
+
+        .heart-icon.lost {
+            filter: grayscale(100%) brightness(0.3) opacity(0.5);
+            box-shadow: none;
+        }
+
+        /* BOTÓN INDEPENDIENTE DE BOTIQUÍN EN UI */
+        .health-kit-btn {
+            width: 60px;
+            height: 60px;
+            background-image: url("https://static.wixstatic.com/media/05967e_963390be16384b0482185d5a84ca4416~mv2.png");
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            background-color: rgba(15, 23, 42, 0.6);
+            border: 2px solid #00FFCC;
+            border-radius: 8px;
+            cursor: pointer;
+            pointer-events: auto;
+            transition: all 0.2s ease;
+            box-shadow: 0 0 10px rgba(0, 255, 204, 0.3);
+        }
+
+        .health-kit-btn:hover {
+            transform: scale(1.1);
+            background-color: rgba(0, 255, 204, 0.2);
+            box-shadow: 0 0 18px rgba(0, 255, 204, 0.8);
+        }
+
+        .health-kit-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* PANEL DE TIMER */
+        .timer-image-panel {
+            position: relative;
+            width: 140px;
+            height: 70px;
+            background-image: url("https://static.wixstatic.com/media/05967e_fbb00ef9d09a4f388d023f65763f106f~mv2.png");
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            padding-bottom: 10px;
+            pointer-events: auto;
+        }
+
+        .timer-text-overlay {
+            font-size: clamp(1.1rem, 1.8vw, 1.5rem);
+            color: #00FFFF;
+            font-weight: 900;
+            letter-spacing: 2px;
+            text-shadow: 0 0 8px rgba(0, 255, 255, 0.6);
+        }
+
+        /* PANEL DE GEMAS */
+        .gems-image-panel {
+            position: relative;
+            width: 140px;
+            height: 70px;
+            background-image: url("https://static.wixstatic.com/media/05967e_db031261756048c0b0ec7dc64d19239c~mv2.png");
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            padding-bottom: 10px;
+            pointer-events: auto;
+        }
+
+        .gems-text-overlay {
+            font-size: clamp(1.1rem, 1.8vw, 1.5rem);
+            color: #FDCC0D;
+            font-weight: 900;
+            letter-spacing: 2px;
+            text-shadow: 0 0 8px rgba(253, 204, 13, 0.6);
+        }
+
+        .time-critical {
+            color: #FF2A2A !important;
+            animation: pulse-red 0.8s infinite alternate;
+        }
+
+        @keyframes pulse-red {
+            0% { text-shadow: 0 0 5px #FF2A2A; }
+            100% { text-shadow: 0 0 15px #FF2A2A, 0 0 25px #FF0000; }
+        }
+
+        /* PANELES INFERIORES TEXTURIZADOS CON IMAGEN DE WIX */
+        .weapon-brick-panel {
+            position: relative;
+            min-width: 260px;
+            min-height: 110px;
+            background-image: url("https://static.wixstatic.com/media/05967e_850cddabfa034079bdf777963a70f295~mv2.png");
+            background-size: 100% 100%;
+            background-repeat: no-repeat;
+            padding: 12px 18px;
+            pointer-events: auto;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .inventory-brick-panel {
+            position: relative;
+            min-width: 280px;
+            min-height: 110px;
+            background-image: url("https://static.wixstatic.com/media/05967e_850cddabfa034079bdf777963a70f295~mv2.png");
+            background-size: 100% 100%;
+            background-repeat: no-repeat;
+            padding: 12px 18px;
+            pointer-events: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .key-status-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 6px;
+        }
+
+        .key-status-box {
+            width: 40px;
+            height: 40px;
+            background-image: url("https://static.wixstatic.com/media/05967e_850cddabfa034079bdf777963a70f295~mv2.png");
+            background-size: cover;
+            border: 1px solid #FDCC0D;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .key-status-box img {
+            width: 80%;
+            height: 80%;
+            object-fit: contain;
+        }
+
+        .inventory-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 6px;
+        }
+
+        .inventory-slot {
+            width: 48px;
+            height: 48px;
+            background-image: url("https://static.wixstatic.com/media/05967e_850cddabfa034079bdf777963a70f295~mv2.png");
+            background-size: cover;
+            background-position: center;
+            border: 2px solid rgba(0, 255, 255, 0.4);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.2s ease;
+            position: relative;
+            cursor: pointer;
+            pointer-events: auto;
+        }
+
+        .inventory-slot.has-item {
+            border-color: rgba(253, 204, 13, 0.5);
+        }
+
+        .inventory-slot.active-slot {
+            border-color: #FDCC0D !important;
+            box-shadow: 0 0 12px #FDCC0D, inset 0 0 8px rgba(253, 204, 13, 0.6);
+            transform: scale(1.08);
+        }
+
+        .slot-number {
+            position: absolute;
+            top: 2px;
+            left: 4px;
+            font-size: 0.55rem;
+            color: #00FFFF;
+            font-weight: 900;
+        }
+
+        .inventory-slot img, .inventory-slot svg {
+            max-width: 75%;
+            max-height: 75%;
+            object-fit: contain;
+            transition: all 0.2s ease;
+        }
+
+        .crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 10px;
+            height: 10px;
+            border: 2px solid rgba(0, 255, 255, 0.9);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+        .crosshair::before {
+            content: '';
+            position: absolute;
+            top: 3px; left: 3px;
+            width: 4px; height: 4px;
+            background: #FDCC0D;
+            border-radius: 50%;
+        }
+
+        #blocker, #death-modal, #victory-modal {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(15, 23, 42, 0.88);
+            z-index: 20;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(15px);
+        }
+
+        #death-modal, #victory-modal {
+            z-index: 30;
+            display: none;
+        }
+
+        .instructions-card, .death-card, .victory-card {
+            text-align: center;
+            max-width: 520px;
+            width: 90%;
+            min-height: 320px;
+            background-image: url("https://static.wixstatic.com/media/05967e_850cddabfa034079bdf777963a70f295~mv2.png");
+            background-size: 100% 100%;
+            background-repeat: no-repeat;
+            padding: 35px 30px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 0 35px rgba(0, 255, 255, 0.3);
+            border: none;
+        }
+
+        .death-card {
+            box-shadow: 0 0 35px rgba(255, 42, 42, 0.5);
+            min-height: 250px;
+        }
+
+        .victory-card {
+            box-shadow: 0 0 35px rgba(0, 255, 255, 0.7);
+            min-height: 250px;
+        }
+
+        .sgx-btn {
+            background: rgba(253, 204, 13, 0.2);
+            color: #FDCC0D;
+            border: 1px solid #FDCC0D;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.1rem;
+            padding: 12px 30px;
+            margin-top: 20px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 700;
+        }
+
+        .sgx-btn:hover {
+            background: #FDCC0D;
+            color: #050505;
+            box-shadow: 0 0 20px rgba(253, 204, 13, 0.6);
+        }
+
+        .death-btn {
+            background: rgba(255, 42, 42, 0.25);
+            color: #FF2A2A;
+            border: 1px solid #FF2A2A;
+        }
+
+        .death-btn:hover {
+            background: #FF2A2A;
+            color: #FFFFFF;
+            box-shadow: 0 0 25px rgba(255, 42, 42, 0.9);
+        }
+
+        .victory-btn {
+            background: rgba(0, 255, 255, 0.25);
+            color: #00FFFF;
+            border: 1px solid #00FFFF;
+        }
+
+        .victory-btn:hover {
+            background: #00FFFF;
+            color: #050505;
+            box-shadow: 0 0 25px rgba(0, 255, 255, 0.9);
+        }
+
+        .controls-list {
+            text-align: left;
+            margin: 15px 0;
+            font-size: 0.85rem;
+            color: #CCCCCC;
+            line-height: 1.6;
+        }
+        .controls-list span { color: #00FFFF; }
+
+        #loading-text {
+            color: #00FFFF;
+            font-size: 0.85rem;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+    </style>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+    <div id="damage-overlay"></div>
+    <div class="crosshair"></div>
+
+    <div class="hud-layer">
+        <!-- HEADER -->
+        <div class="hud-header">
+            <div class="hud-left-group">
+                <div class="health-image-panel">
+                    <div class="hearts-container">
+                        <div id="heart-1" class="heart-icon"></div>
+                        <div id="heart-2" class="heart-icon"></div>
+                        <div id="heart-3" class="heart-icon"></div>
+                    </div>
+                </div>
+
+                <!-- BOTÓN INDEPENDIENTE DE SALUD -->
+                <button class="health-kit-btn" title="Usar Botiquín (+35 HP)" onclick="healPlayer(35)"></button>
+            </div>
+
+            <div class="hud-center">
+                <div class="timer-image-panel">
+                    <span id="timer-val" class="timer-text-overlay">03:00</span>
+                </div>
+                <div class="gems-image-panel" title="Gemas recolectadas para revivir si mueres">
+                    <span id="gems-text-container" class="gems-text-overlay"><span id="gems-val">0</span>/5</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- FOOTER -->
+        <div class="hud-footer">
+            <div class="weapon-brick-panel">
+                <div style="font-size:0.7rem; color:#AAA; font-weight: bold;">ARMAMENTO EQUIPPED</div>
+                <div id="weapon-name" style="color:#FFAA00; font-weight:900; font-size:0.95rem; margin-top:2px;">MACHETE TÁCTICO</div>
+                
+                <div class="key-status-container">
+                    <div class="key-status-box">
+                        <img id="key-icon" src="https://static.wixstatic.com/media/05967e_39b4fe8981d544e0800f5505d91b1673~mv2.png" alt="Llave">
+                    </div>
+                    <div>
+                        <div id="key-status" style="font-size:0.75rem; color:#DDD; font-weight:bold;">LLAVE: NO POSEÍDA</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="inventory-brick-panel">
+                <div style="font-size:0.7rem; color:#AAA; letter-spacing:1px; font-weight:bold;">INVENTARIO [1-4]</div>
+                <div class="inventory-container">
+                    <div class="inventory-slot has-item active-slot" id="slot-1" onclick="seleccionarSlot(0)">
+                        <span class="slot-number">1</span>
+                        <svg id="img-slot-1" viewBox="0 0 64 64" width="30" height="30" style="filter: drop-shadow(0px 0px 3px #000000);">
+                            <path d="M12 52 L22 42 L18 38 L8 48 Z" fill="#FDCC0D" />
+                            <path d="M22 42 L52 10 C 56 14, 52 24, 38 32 L18 38 Z" fill="#FFF275" stroke="#FDCC0D" stroke-width="1.5" />
+                            <line x1="16" y1="44" x2="20" y2="40" stroke="#050505" stroke-width="2" />
+                        </svg>
+                    </div>
+                    <div class="inventory-slot" id="slot-2" onclick="seleccionarSlot(1)"><span class="slot-number">2</span></div>
+                    <div class="inventory-slot" id="slot-3" onclick="seleccionarSlot(2)"><span class="slot-number">3</span></div>
+                    <div class="inventory-slot" id="slot-4" onclick="seleccionarSlot(3)"><span class="slot-number">4</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL INICIO -->
+    <div id="blocker">
+        <div class="instructions-card">
+            <h1 style="font-size:1.8rem; margin-bottom:10px; color:#FFFFFF; text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);">LABERINTO SGX</h1>
+            <p style="font-size:0.85rem; color:#ccc;">Escape First-Person del Minotauro</p>
+            
+            <div class="controls-list">
+                • <span>W, A, S, D</span> : Moverse<br>
+                • <span>1, 2, 3, 4</span> : Seleccionar / Cambiar arma<br>
+                • <span>ARRASTRAR CLIC IZQUIERDO</span> : Mirar alrededor<br>
+                • <span>CLIC DERECHO</span> : Atacar con el arma equipada<br>
+                • <span>OBJETIVO PRINCIPAL</span> : Escapa fuera del radio del laberinto.<br>
+                • <span>GEMAS (OPCIONAL)</span> : Recolecta las 5 gemas para revivir si caes.
+            </div>
+
+            <div id="loading-text">Cargando modelos 3D...</div>
+            <button id="start-btn" class="sgx-btn" style="display:none;">INICIAR MISIÓN</button>
+        </div>
+    </div>
+
+    <!-- MODAL MUERTE -->
+    <div id="death-modal">
+        <div class="death-card">
+            <h1 style="font-size:2.2rem; color:#FF2A2A; margin-bottom:10px; text-shadow: 0 0 12px rgba(255, 42, 42, 0.8);">¡HAS MUERTO!</h1>
+            <p id="death-reason" style="font-size:0.95rem; color:#EEEEEE; margin: 10px 0; font-weight: bold; line-height: 1.4;"></p>
+            
+            <div id="gem-revive-container" style="margin-top: 15px; display: flex; flex-direction: column; align-items: center; gap: 10px;">
+                <p style="font-size: 1.05rem; color: #FDCC0D; font-weight: 900; letter-spacing: 1px;">¿Tienes las 5 gemas para revivir?</p>
+                <div style="display: flex; gap: 15px;">
+                    <button id="yes-revive-btn" class="sgx-btn" style="margin-top: 0; background: rgba(0, 255, 255, 0.2); color: #00FFFF; border: 1px solid #00FFFF;">Sí (Revivir)</button>
+                    <button id="no-restart-btn" class="sgx-btn death-btn" style="margin-top: 0;">No (Reiniciar)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL VICTORIA -->
+    <div id="victory-modal">
+        <div class="victory-card">
+            <h1 style="font-size:2.5rem; color:#00FFFF; margin-bottom:10px; text-shadow: 0 0 15px rgba(0, 255, 255, 0.9);">VICTORY</h1>
+            <p style="font-size:1rem; color:#EEEEEE; margin: 10px 0; font-weight: bold; line-height: 1.4;">¡Has escapado con éxito fuera del radio del laberinto!</p>
+            <button id="restart-victory-btn" class="sgx-btn victory-btn" style="margin-top: 20px;">JUGAR OTRA VEZ</button>
+        </div>
+    </div>
+
+    <script>
+        const WIX_GLB_MAP = "https://static.wixstatic.com/3d/05967e_e61320bb2ef2446698d938931cae78ba.glb";
+        const WIX_GLB_MINOTAUR = "https://static.wixstatic.com/3d/05967e_2cd555e7b2af442e95bb7f185ba34e4f.glb";
+        const WIX_GLB_KEY = "https://static.wixstatic.com/3d/05967e_048a1873b69f4febbde8f3f87b694a71.glb";
+        const WIX_GLB_GEM = "https://static.wixstatic.com/3d/05967e_e4f6ea4f6bdf4ee1ac17faab5f8cb856.glb";
+        const WIX_GLB_MACHETE = "https://static.wixstatic.com/3d/05967e_4847252fc08c43b283735ba890ff420e.glb";
+        const WIX_GLB_SWORD = "https://static.wixstatic.com/3d/05967e_546bb84655b64f8c882bf6eb6c85910a.glb";
+        const WIX_GLB_CERBERUS = "https://static.wixstatic.com/3d/05967e_1693f141af19443d9cb6b79074a3d666.glb";
+        const WIX_GLB_HAMMER = "https://static.wixstatic.com/3d/05967e_6afbde21d18446cba52c5e02d20026ba.glb";
+        const WIX_GLB_FIREBALL = "https://static.wixstatic.com/3d/05967e_5d51ebeb3dfa49fb8b2f71dfcfd1aad6.glb";
+
+        const ICONS = {
+            sword: "https://static.wixstatic.com/media/05967e_f6e749e0a96c48fe8421b08f339ed3c8~mv2.png",
+            key: "https://static.wixstatic.com/media/05967e_39b4fe8981d544e0800f5505d91b1673~mv2.png",
+            hammer: "https://static.wixstatic.com/media/05967e_c7b3b051499c494ca8df700a19d844fb~mv2.png"
+        };
+
+        /* CONFIGURACIÓN DE ROTACIÓN DE LA BOLA DE FUEGO */
+        let FIREBALL_ROTATION = {
+            x: 0,
+            y: 0,
+            z: 0
+        };
+
+        let victoryRadiusMultiplier = 1.1;
+
+        let inventarioSlots = ['machete', null, null, null];
+        let currentSlotIndex = 0;
+
+        let scene, camera, cameraHolder, renderer;
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        
+        let playerHP = 100;
+        let gemsCollected = 0;
+        const TOTAL_GEMS = 5;
+        let isAttacking = false;
+        let gameActive = false;
+
+        let timeRemaining = 180;
+        let timerInterval = null;
+
+        let minotaurMesh, currentWeaponMesh, macheteMesh, swordMesh, swordPickupMesh, hammerMesh, hammerPickupMesh, mazeMesh, keyMesh;
+        let cerberusMesh = null;
+        let cerberusHP = 1000;
+        let isCerberusAwake = false;
+        let isCerberusDead = false;
+        let cerberusHealthBarMesh = null;
+        let cerberusHealthCanvas, cerberusHealthCtx, cerberusHealthTexture;
+        let cerberusMixer = null;
+
+        let fireballModel = null;
+        let activeFireballs = [];
+        let cerberusAttackTimer = 0;
+
+        let doorMeshes = [];
+        let isDoorUnlocked = false;
+
+        let hasSword = false;
+        let hasHammer = false;
+        let attackDamage = 25;
+
+        let minotaurHP = 500;
+        let isMinotaurDead = false;
+        let hasKey = false;
+        let minotaurHealthBarMesh = null;
+        let healthCanvas, healthCtx, healthTexture;
+
+        let collidableObjects = [];
+        let raycaster = new THREE.Raycaster();
+        let enemyRaycaster = new THREE.Raycaster();
+        let downRaycaster = new THREE.Raycaster();
+        let fireballRaycaster = new THREE.Raycaster(); // RAYCASTER PARA BOLA DE FUEGO
+
+        let mixer;
+        let clock = new THREE.Clock();
+
+        let gemsArray = [];
+        let audioCtx = null;
+
+        let isMouseDown = false;
+        let mouseX = 0, mouseY = 0;
+        let pitch = 0, yaw = 0;
+
+        let groundY = 0;
+        let mazeRadius = 15;
+
+        init();
+        animate();
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x3a424d);
+
+            cameraHolder = new THREE.Group();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.01, 3000);
+            cameraHolder.add(camera);
+            scene.add(cameraHolder);
+
+            const container = document.getElementById('canvas-container');
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1.8);
+            scene.add(ambientLight);
+
+            const sunLight = new THREE.DirectionalLight(0xffffff, 1.3);
+            sunLight.position.set(100, 200, 100);
+            scene.add(sunLight);
+
+            const startBtn = document.getElementById('start-btn');
+            const yesReviveBtn = document.getElementById('yes-revive-btn');
+            const noRestartBtn = document.getElementById('no-restart-btn');
+            const restartVictoryBtn = document.getElementById('restart-victory-btn');
+            const blocker = document.getElementById('blocker');
+
+            startBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                
+                blocker.style.display = 'none';
+                gameActive = true;
+                startTimer();
+            });
+
+            yesReviveBtn.addEventListener('click', () => {
+                if (gemsCollected >= TOTAL_GEMS) {
+                    playerHP = 100;
+                    updatePlayerHearts();
+                    document.getElementById('death-modal').style.display = 'none';
+                    gameActive = true;
+                    startTimer();
+                } else {
+                    alert("¡No tienes las 5 gemas requeridas para revivir! Debes iniciar otra vez.");
+                    location.reload();
+                }
+            });
+
+            noRestartBtn.addEventListener('click', () => {
+                location.reload();
+            });
+
+            restartVictoryBtn.addEventListener('click', () => {
+                location.reload();
+            });
+
+            document.addEventListener('keydown', (e) => {
+                switch (e.code) {
+                    case 'KeyW': moveForward = true; break;
+                    case 'KeyA': moveLeft = true; break;
+                    case 'KeyS': moveBackward = true; break;
+                    case 'KeyD': moveRight = true; break;
+                    case 'Digit1': seleccionarSlot(0); break;
+                    case 'Digit2': seleccionarSlot(1); break;
+                    case 'Digit3': seleccionarSlot(2); break;
+                    case 'Digit4': seleccionarSlot(3); break;
+                }
+            });
+
+            document.addEventListener('keyup', (e) => {
+                switch (e.code) {
+                    case 'KeyW': moveForward = false; break;
+                    case 'KeyA': moveLeft = false; break;
+                    case 'KeyS': moveBackward = false; break;
+                    case 'KeyD': moveRight = false; break;
+                }
+            });
+
+            window.addEventListener('contextmenu', (e) => e.preventDefault());
+
+            window.addEventListener('mousedown', (e) => {
+                if (e.target.closest('#blocker') || e.target.closest('#death-modal') || e.target.closest('#victory-modal') || e.target.closest('.inventory-slot') || e.target.closest('.health-kit-btn')) return;
+
+                if (e.button === 2 && gameActive) {
+                    attackWithWeapon();
+                }
+
+                if (e.button === 0) {
+                    isMouseDown = true;
+                    mouseX = e.clientX;
+                    mouseY = e.clientY;
+                }
+            });
+
+            window.addEventListener('mouseup', (e) => {
+                if (e.button === 0) {
+                    isMouseDown = false;
+                }
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!gameActive || !isMouseDown) return;
+
+                const deltaX = e.clientX - mouseX;
+                const deltaY = e.clientY - mouseY;
+
+                yaw -= deltaX * 0.003;
+                pitch -= deltaY * 0.003;
+
+                pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, pitch));
+
+                cameraHolder.rotation.y = yaw;
+                camera.rotation.x = pitch;
+
+                mouseX = e.clientX;
+                mouseY = e.clientY;
+            });
+
+            loadWixModels();
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function triggerDamageFlash() {
+            const overlay = document.getElementById('damage-overlay');
+            if (overlay) {
+                overlay.classList.add('active');
+                setTimeout(() => {
+                    overlay.classList.remove('active');
+                }, 150);
+            }
+        }
+
+        function agregarAlInventario(itemId, iconUrl) {
+            if (inventarioSlots.includes(itemId)) return;
+            const emptyIndex = inventarioSlots.indexOf(null);
+
+            if (emptyIndex !== -1) {
+                inventarioSlots[emptyIndex] = itemId;
+                const slotElement = document.getElementById(`slot-${emptyIndex + 1}`);
+
+                if (slotElement) {
+                    slotElement.innerHTML = `<span class="slot-number">${emptyIndex + 1}</span><img src="${iconUrl}" alt="${itemId}">`;
+                    slotElement.classList.add('has-item');
+                }
+            }
+        }
+
+        function seleccionarSlot(index) {
+            if (index < 0 || index >= inventarioSlots.length) return;
+            const item = inventarioSlots[index];
+
+            for (let i = 1; i <= 4; i++) {
+                const el = document.getElementById(`slot-${i}`);
+                if (el) el.classList.remove('active-slot');
+            }
+
+            const activeSlot = document.getElementById(`slot-${index + 1}`);
+            if (activeSlot) activeSlot.classList.add('active-slot');
+
+            currentSlotIndex = index;
+            const weaponHud = document.getElementById('weapon-name');
+
+            if (currentWeaponMesh) {
+                camera.remove(currentWeaponMesh);
+                currentWeaponMesh = null;
+            }
+
+            if (item === 'machete') {
+                if (macheteMesh) {
+                    currentWeaponMesh = macheteMesh;
+                    camera.add(currentWeaponMesh);
+                }
+                attackDamage = 25;
+                weaponHud.innerText = "MACHETE TÁCTICO";
+                weaponHud.style.color = "#FFAA00";
+            } else if (item === 'sword') {
+                if (swordMesh) {
+                    currentWeaponMesh = swordMesh;
+                    camera.add(currentWeaponMesh);
+                }
+                attackDamage = 50;
+                weaponHud.innerText = "ESPADA DE ENERGÍA ⚔️";
+                weaponHud.style.color = "#00FFFF";
+            } else if (item === 'hammer') {
+                if (hammerMesh) {
+                    currentWeaponMesh = hammerMesh;
+                    camera.add(currentWeaponMesh);
+                }
+                attackDamage = 75;
+                weaponHud.innerText = "MAZO ANCESTRAL 🔨";
+                weaponHud.style.color = "#FF00FF";
+            } else if (item === 'key') {
+                attackDamage = 0;
+                weaponHud.innerText = "LLAVE DEL LABERINTO 🗝️";
+                weaponHud.style.color = "#FDCC0D";
+            } else {
+                attackDamage = 0;
+                weaponHud.innerText = "MANOS VACÍAS";
+                weaponHud.style.color = "#888888";
+            }
+
+            playSFX(700, 0.08);
+        }
+
+        function triggerGameOver(reasonMessage) {
+            clearInterval(timerInterval);
+            gameActive = false;
+            
+            const deathModal = document.getElementById('death-modal');
+            const deathReason = document.getElementById('death-reason');
+            const yesBtn = document.getElementById('yes-revive-btn');
+            
+            deathReason.innerText = reasonMessage;
+
+            if (gemsCollected >= TOTAL_GEMS) {
+                yesBtn.style.opacity = "1";
+                yesBtn.style.pointerEvents = "auto";
+            } else {
+                yesBtn.style.opacity = "0.5";
+            }
+
+            deathModal.style.display = 'flex';
+        }
+
+        function triggerVictory() {
+            clearInterval(timerInterval);
+            gameActive = false;
+            playSFX(1200, 0.5);
+            document.getElementById('victory-modal').style.display = 'flex';
+        }
+
+        function updatePlayerHearts() {
+            const h1 = document.getElementById('heart-1');
+            const h2 = document.getElementById('heart-2');
+            const h3 = document.getElementById('heart-3');
+
+            if (playerHP <= 66) { if (h3) h3.classList.add('lost'); } else { if (h3) h3.classList.remove('lost'); }
+            if (playerHP <= 33) { if (h2) h2.classList.add('lost'); } else { if (h2) h2.classList.remove('lost'); }
+            if (playerHP <= 0) { if (h1) h1.classList.add('lost'); } else { if (h1) h1.classList.remove('lost'); }
+        }
+
+        function healPlayer(amount) {
+            if (playerHP < 100) {
+                playerHP = Math.min(100, playerHP + amount);
+                updatePlayerHearts();
+                playSFX(1100, 0.2); 
+                return true;
+            }
+            return false;
+        }
+
+        function startTimer() {
+            const timerElement = document.getElementById('timer-val');
+            
+            timerInterval = setInterval(() => {
+                if (!gameActive) return;
+
+                timeRemaining--;
+
+                let minutes = Math.floor(timeRemaining / 60);
+                let seconds = timeRemaining % 60;
+
+                let formattedMinutes = minutes < 10 ? "0" + minutes : minutes;
+                let formattedSeconds = seconds < 10 ? "0" + seconds : seconds;
+
+                timerElement.innerText = `${formattedMinutes}:${formattedSeconds}`;
+
+                if (timeRemaining <= 20) {
+                    timerElement.classList.add('time-critical');
+                }
+
+                if (timeRemaining <= 0) {
+                    triggerGameOver("¡TIEMPO AGOTADO! Te has quedado atrapado en el laberinto.");
+                }
+            }, 1000);
+        }
+
+        function createMinotaurHealthBar() {
+            healthCanvas = document.createElement('canvas');
+            healthCanvas.width = 256;
+            healthCanvas.height = 32;
+            healthCtx = healthCanvas.getContext('2d');
+
+            healthTexture = new THREE.CanvasTexture(healthCanvas);
+            const spriteMaterial = new THREE.MeshBasicMaterial({ 
+                map: healthTexture, 
+                transparent: true, 
+                side: THREE.DoubleSide 
+            });
+
+            const geometry = new THREE.PlaneGeometry(2.5, 0.35);
+            minotaurHealthBarMesh = new THREE.Mesh(geometry, spriteMaterial);
+            minotaurHealthBarMesh.position.set(0, 10.0, 0);
+            
+            updateHealthBar();
+            return minotaurHealthBarMesh;
+        }
+
+        function updateHealthBar() {
+            if (!healthCtx) return;
+
+            healthCtx.clearRect(0, 0, 256, 32);
+            healthCtx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+            healthCtx.fillRect(0, 0, 256, 32);
+            healthCtx.strokeStyle = '#FDCC0D';
+            healthCtx.lineWidth = 4;
+            healthCtx.strokeRect(2, 2, 252, 28);
+
+            const pct = Math.max(0, minotaurHP / 100);
+            healthCtx.fillStyle = pct > 0.4 ? '#00FFCC' : '#FF2A2A';
+            healthCtx.fillRect(6, 6, (256 - 12) * pct, 20);
+
+            healthCtx.font = 'bold 12px Orbitron, sans-serif';
+            healthCtx.fillStyle = '#FFFFFF';
+            healthCtx.textAlign = 'center';
+            healthCtx.fillText(`MINOTAURO: ${Math.max(0, Math.ceil(minotaurHP))}%`, 128, 20);
+
+            healthTexture.needsUpdate = true;
+        }
+
+        function createCerberusHealthBar() {
+            cerberusHealthCanvas = document.createElement('canvas');
+            cerberusHealthCanvas.width = 256;
+            cerberusHealthCanvas.height = 32;
+            cerberusHealthCtx = cerberusHealthCanvas.getContext('2d');
+
+            cerberusHealthTexture = new THREE.CanvasTexture(cerberusHealthCanvas);
+            const spriteMaterial = new THREE.MeshBasicMaterial({ 
+                map: cerberusHealthTexture, 
+                transparent: true, 
+                side: THREE.DoubleSide 
+            });
+
+            const geometry = new THREE.PlaneGeometry(2.5, 0.35);
+            cerberusHealthBarMesh = new THREE.Mesh(geometry, spriteMaterial);
+            cerberusHealthBarMesh.position.set(0, 4.0, 0);
+            
+            updateCerberusHealthBar();
+            return cerberusHealthBarMesh;
+        }
+
+        function updateCerberusHealthBar() {
+            if (!cerberusHealthCtx) return;
+
+            cerberusHealthCtx.clearRect(0, 0, 256, 32);
+            cerberusHealthCtx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+            cerberusHealthCtx.fillRect(0, 0, 256, 32);
+            cerberusHealthCtx.strokeStyle = '#FF2A2A';
+            cerberusHealthCtx.lineWidth = 4;
+            cerberusHealthCtx.strokeRect(2, 2, 252, 28);
+
+            const pct = Math.max(0, cerberusHP / 150);
+            cerberusHealthCtx.fillStyle = pct > 0.4 ? '#00FFCC' : '#FF2A2A';
+            cerberusHealthCtx.fillRect(6, 6, (256 - 12) * pct, 20);
+
+            cerberusHealthCtx.font = 'bold 12px Orbitron, sans-serif';
+            cerberusHealthCtx.fillStyle = '#FFFFFF';
+            cerberusHealthCtx.textAlign = 'center';
+            cerberusHealthCtx.fillText(`CERBERO: ${Math.max(0, Math.ceil((cerberusHP / 150) * 100))}%`, 128, 20);
+
+            cerberusHealthTexture.needsUpdate = true;
+        }
+
+        function spawnGems(baseY, gemModelTemplate, onComplete) {
+            const gemCoordinates = [
+                { x: 100.0,  z: 205.0  },
+                { x: -170.0, z: 100.0 },
+                { x: 100.0,  z: 110.0  },
+                { x: -140.0, z: 20.0   },
+                { x: -148.0, z: -80.0  }
+            ];
+
+            for (let i = 0; i < gemCoordinates.length; i++) {
+                const gem = gemModelTemplate.clone();
+                const coords = gemCoordinates[i];
+                
+                gem.position.set(coords.x, baseY + 1.0, coords.z);
+                gem.scale.set(1.5, 1.5, 1.5);
+
+                scene.add(gem);
+                gemsArray.push(gem);
+            }
+            if (onComplete) onComplete();
+        }
+
+        function setFireballRotation(rx = 50, ry = 0, rz = 0) {
+            FIREBALL_ROTATION.x = rx;
+            FIREBALL_ROTATION.y = ry;
+            FIREBALL_ROTATION.z = rz;
+        }
+
+        function shootFireball() {
+            if (!cerberusMesh || !fireballModel || isCerberusDead || !isCerberusAwake) return;
+
+            const fireball = fireballModel.clone();
+            
+            const startPos = cerberusMesh.position.clone();
+            const forward = new THREE.Vector3().subVectors(cameraHolder.position, cerberusMesh.position);
+            forward.y = 0;
+            forward.normalize();
+
+            startPos.addScaledVector(forward, 2.8); 
+            startPos.y += 20.0; 
+
+            fireball.position.copy(startPos);
+
+            const targetPos = cameraHolder.position.clone();
+            const direction = new THREE.Vector3().subVectors(targetPos, startPos).normalize();
+
+            fireball.lookAt(targetPos);
+
+            fireball.rotateX(FIREBALL_ROTATION.x);
+            fireball.rotateY(FIREBALL_ROTATION.y);
+            fireball.rotateZ(FIREBALL_ROTATION.z);
+
+            scene.add(fireball);
+            activeFireballs.push({
+                mesh: fireball,
+                direction: direction,
+                lifeTime: 0
+            });
+
+            playSFX(300, 0.3);
+        }
+
+        function loadWixModels() {
+            const loader = new THREE.GLTFLoader();
+            let loadedCount = 0;
+            const TOTAL_MODELS = 9;
+
+            function checkLoaded() {
+                loadedCount++;
+                if (loadedCount >= TOTAL_MODELS) {
+                    document.getElementById('loading-text').style.display = 'none';
+                    document.getElementById('start-btn').style.display = 'inline-block';
+                }
+            }
+
+            loader.load(WIX_GLB_FIREBALL, (gltf) => {
+                fireballModel = gltf.scene;
+                const box = new THREE.Box3().setFromObject(fireballModel);
+                const size = box.getSize(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z);
+                const targetScale = 5.0 / (maxDim || 1);
+                fireballModel.scale.set(targetScale, targetScale, targetScale);
+                checkLoaded();
+            }, undefined, (err) => { checkLoaded(); });
+
+            loader.load(WIX_GLB_MACHETE, (gltf) => {
+                macheteMesh = gltf.scene;
+
+                const box = new THREE.Box3().setFromObject(macheteMesh);
+                const size = box.getSize(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z);
+                const targetScale = 0.8 / (maxDim || 1); 
+                
+                macheteMesh.scale.set(targetScale, targetScale, targetScale);
+                macheteMesh.position.set(0.35, -0.3, -0.5);
+                macheteMesh.rotation.set(0.2, -Math.PI / 4, 0.2);
+
+                currentWeaponMesh = macheteMesh;
+                camera.add(currentWeaponMesh);
+                checkLoaded();
+            }, undefined, (err) => { checkLoaded(); });
+
+            loader.load(WIX_GLB_MAP, (gltf) => {
+                mazeMesh = gltf.scene;
+
+                const box = new THREE.Box3().setFromObject(mazeMesh);
+                const center = box.getCenter(new THREE.Vector3());
+                mazeMesh.position.sub(center);
+
+                const updatedBox = new THREE.Box3().setFromObject(mazeMesh);
+                const size = updatedBox.getSize(new THREE.Vector3());
+                mazeRadius = size.x / 2.2;
+
+                doorMeshes = [];
+                mazeMesh.traverse((child) => {
+                    if (child.isMesh) {
+                        collidableObjects.push(child);
+                        const nodeName = child.name.toLowerCase();
+                        if (nodeName.includes("door") || nodeName.includes("locked") || nodeName.includes("puerta")) {
+                            doorMeshes.push(child);
+                        }
+                    }
+                });
+
+                groundY = updatedBox.min.y + (size.y * 0.75);
+
+                cameraHolder.position.set(26.0, groundY + 1.8, mazeRadius * 0.9);
+                yaw = -0.3;
+                pitch = 0;
+                cameraHolder.rotation.y = yaw;
+                camera.rotation.x = pitch;
+
+                scene.add(mazeMesh);
+
+                if (swordPickupMesh) {
+                    swordPickupMesh.position.set(25.0, groundY + 0.8, (mazeRadius * 0.7) - 3);
+                }
+
+                if (hammerPickupMesh) {
+                    hammerPickupMesh.position.set(-100.0, groundY + 0.8, (mazeRadius * 0.1) + 10);
+                }
+
+                if (cerberusMesh) {
+                    cerberusMesh.position.set(0, groundY - 2.8, 40);
+                }
+
+                loader.load(WIX_GLB_GEM, (gemGltf) => {
+                    spawnGems(groundY, gemGltf.scene, checkLoaded);
+                }, undefined, (err) => { checkLoaded(); });
+
+                checkLoaded();
+            }, undefined, (err) => { checkLoaded(); });
+
+            loader.load(WIX_GLB_SWORD, (gltf) => {
+                swordPickupMesh = gltf.scene;
+
+                const box = new THREE.Box3().setFromObject(swordPickupMesh);
+                const size = box.getSize(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z);
+                const targetScale = 4.2 / (maxDim || 1);
+                
+                swordPickupMesh.scale.set(targetScale, targetScale, targetScale);
+                swordPickupMesh.position.set(25.0, groundY + 0.8, (mazeRadius * 0.7) - 3);
+
+                swordMesh = swordPickupMesh.clone();
+                swordMesh.scale.set(targetScale * 0.35, targetScale * 0.35, targetScale * 0.35);
+                swordMesh.position.set(0.35, -0.3, -0.5);
+                swordMesh.rotation.set(0.2, -Math.PI / 4, 0.2);
+
+                scene.add(swordPickupMesh);
+                checkLoaded();
+            }, undefined, (err) => { checkLoaded(); });
+
+            loader.load(WIX_GLB_HAMMER, (gltf) => {
+                hammerPickupMesh = gltf.scene;
+
+                const box = new THREE.Box3().setFromObject(hammerPickupMesh);
+                const size = box.getSize(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z);
+                const targetScale = 4.2 / (maxDim || 1);
+                
+                hammerPickupMesh.scale.set(targetScale, targetScale, targetScale);
+                hammerPickupMesh.position.set(-100.0, groundY + 0.40, (mazeRadius * 0.1) + 10);
+                hammerMesh = hammerPickupMesh.clone();
+                hammerMesh.scale.set(targetScale * 0.35, targetScale * 0.35, targetScale * 0.35);
+                hammerMesh.position.set(0.35, -0.3, -0.5);
+                hammerMesh.rotation.set(0.2, -Math.PI / 4, 0.2);
+
+                scene.add(hammerPickupMesh);
+                checkLoaded();
+            }, undefined, (err) => { checkLoaded(); });
+
+            loader.load(WIX_GLB_MINOTAUR, (gltf) => {
+                minotaurMesh = gltf.scene;
+                minotaurMesh.position.set(-170, groundY, -mazeRadius * -0.6);
+                
+                const hBar = createMinotaurHealthBar();
+                minotaurMesh.add(hBar);
+
+                scene.add(minotaurMesh);
+
+                if (gltf.animations && gltf.animations.length > 0) {
+                    mixer = new THREE.AnimationMixer(minotaurMesh);
+                    const action = mixer.clipAction(gltf.animations[0]);
+                    action.play();
+                }
+
+                checkLoaded();
+            }, undefined, (err) => { checkLoaded(); });
+
+            loader.load(WIX_GLB_CERBERUS, (gltf) => {
+                cerberusMesh = gltf.scene;
+
+                const box = new THREE.Box3().setFromObject(cerberusMesh);
+                const size = box.getSize(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z);
+                const targetScale = 40.0 / (maxDim || 1);
+                cerberusMesh.scale.set(targetScale, targetScale, targetScale);
+
+                cerberusMesh.position.set(10, groundY - 2.8, 0);
+
+                const cBar = createCerberusHealthBar();
+                cerberusMesh.add(cBar);
+
+                scene.add(cerberusMesh);
+
+                if (gltf.animations && gltf.animations.length > 0) {
+                    cerberusMixer = new THREE.AnimationMixer(cerberusMesh);
+                    const action = cerberusMixer.clipAction(gltf.animations[0]);
+                    action.play();
+                }
+
+                checkLoaded();
+            }, undefined, (err) => { checkLoaded(); });
+
+            loader.load(WIX_GLB_KEY, (gltf) => {
+                keyMesh = gltf.scene;
+                const box = new THREE.Box3().setFromObject(keyMesh);
+                const size = box.getSize(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z);
+                const targetScale = 1.8 / (maxDim || 1);
+                keyMesh.scale.set(targetScale, targetScale, targetScale);
+                checkLoaded();
+            }, undefined, (err) => { checkLoaded(); });
+        }
+
+        function checkCollision(moveVector) {
+            if (collidableObjects.length === 0) return false;
+            const rayDir = moveVector.clone().normalize();
+            raycaster.set(cameraHolder.position, rayDir);
+
+            const intersects = raycaster.intersectObjects(collidableObjects, true);
+            if (intersects.length > 0 && intersects[0].distance < 0.8) {
+                return true;
+            }
+            return false;
+        }
+
+        function checkEnemyCollision(position, moveVector, minDistance = 3.8) {
+            if (collidableObjects.length === 0) return false;
+            const rayDir = moveVector.clone().normalize();
+            const yOffsets = [0.8, 1.8, 2.6];
+            const perp = new THREE.Vector3(-rayDir.z, 0, rayDir.x).normalize().multiplyScalar(1.5);
+            const xzOffsets = [ new THREE.Vector3(0, 0, 0), perp.clone(), perp.clone().negate() ];
+
+            for (let y of yOffsets) {
+                for (let xz of xzOffsets) {
+                    const origin = position.clone().add(xz);
+                    origin.y += y;
+                    enemyRaycaster.set(origin, rayDir);
+                    const intersects = enemyRaycaster.intersectObjects(collidableObjects, true);
+                    if (intersects.length > 0 && intersects[0].distance < minDistance) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function getValidGroundData(position) {
+            if (collidableObjects.length === 0) return { y: groundY, isWater: false };
+            const rayOrigin = position.clone();
+            rayOrigin.y += 20.0;
+            downRaycaster.set(rayOrigin, new THREE.Vector3(0, -1, 0));
+            
+            const intersects = downRaycaster.intersectObjects(collidableObjects, true);
+            if (intersects.length > 0) {
+                const hit = intersects[0];
+                const hitObj = hit.object;
+                const name = hitObj.name.toLowerCase();
+                
+                let isWater = name.includes("water") || name.includes("agua") || name.includes("azul") || name.includes("river");
+                
+                if (hitObj.material && hitObj.material.color) {
+                    const col = hitObj.material.color;
+                    if (col.b > col.r + 0.2 && col.b > col.g + 0.2) {
+                        isWater = true;
+                    }
+                }
+
+                return { y: hit.point.y, isWater: isWater };
+            }
+            return { y: groundY, isWater: false };
+        }
+
+        function wakeUpCerberus() {
+            if (isCerberusAwake || isCerberusDead) return;
+            isCerberusAwake = true;
+            playSFX(150, 0.6);
+        }
+
+        function unlockAndOpenDoor() {
+            if (isDoorUnlocked) return;
+            isDoorUnlocked = true;
+            playSFX(300, 0.5);
+
+            doorMeshes.forEach((doorPart) => {
+                const index = collidableObjects.indexOf(doorPart);
+                if (index !== -1) collidableObjects.splice(index, 1);
+
+                anime({
+                    targets: doorPart.position,
+                    y: doorPart.position.y - 5.0,
+                    duration: 2000,
+                    easing: 'easeInOutQuad',
+                    complete: () => { wakeUpCerberus(); }
+                });
+            });
+
+            const keyHud = document.getElementById('key-status');
+            keyHud.innerText = "¡PUERTAS DESBLOQUEADAS! 🔓";
+            keyHud.style.color = "#00FFCC";
+        }
+
+        function attackWithWeapon() {
+            if (isAttacking || attackDamage === 0) return;
+            isAttacking = true;
+
+            playSFX(attackDamage > 30 ? 600 : 400, 0.12);
+
+            if (currentWeaponMesh) {
+                anime({
+                    targets: currentWeaponMesh.rotation,
+                    x: [0.2, 1.3, 0.2],
+                    y: [-Math.PI / 4, -Math.PI / 2, -Math.PI / 4],
+                    z: [0.2, -0.4, 0.2],
+                    duration: 220,
+                    easing: 'easeOutQuad',
+                    complete: () => { isAttacking = false; }
+                });
+            } else {
+                setTimeout(() => { isAttacking = false; }, 220);
+            }
+
+            if (minotaurMesh && !isMinotaurDead) {
+                const minotaurCenterPos = minotaurMesh.position.clone();
+                minotaurCenterPos.y += 2.0; 
+
+                const dist = cameraHolder.position.distanceTo(minotaurCenterPos);
+                if (dist < 8.5) {
+                    playSFX(120, 0.25);
+                    const pushDir = new THREE.Vector3().subVectors(minotaurMesh.position, cameraHolder.position).normalize();
+                    
+                    if (!checkEnemyCollision(minotaurMesh.position, pushDir, 3.8)) {
+                        minotaurMesh.position.addScaledVector(pushDir, 2.2);
+                        minotaurMesh.position.y = getValidGroundData(minotaurMesh.position).y;
+                    }
+
+                    minotaurHP -= attackDamage;
+                    updateHealthBar();
+
+                    minotaurMesh.traverse((child) => {
+                        if (child.isMesh && child.material) {
+                            const origColor = child.material.color.getHex();
+                            child.material.color.setHex(0xFF0000);
+                            setTimeout(() => { if (child.material) child.material.color.setHex(origColor); }, 150);
+                        }
+                    });
+
+                    if (minotaurHP <= 0) killMinotaur();
+                }
+            }
+
+            if (cerberusMesh && isCerberusAwake && !isCerberusDead) {
+                const distCerberus = cameraHolder.position.distanceTo(cerberusMesh.position);
+                if (distCerberus < 8.5) {
+                    playSFX(100, 0.25);
+                    const pushDir = new THREE.Vector3().subVectors(cerberusMesh.position, cameraHolder.position).normalize();
+                    
+                    if (!checkEnemyCollision(cerberusMesh.position, pushDir, 3.8)) {
+                        cerberusMesh.position.addScaledVector(pushDir, 0.8);
+                        cerberusMesh.position.y = getValidGroundData(cerberusMesh.position).y - 2.8;
+                    }
+
+                    cerberusHP -= attackDamage;
+                    updateCerberusHealthBar();
+
+                    cerberusMesh.traverse((child) => {
+                        if (child.isMesh && child.material) {
+                            const origColor = child.material.color.getHex();
+                            child.material.color.setHex(0xFF0000);
+                            setTimeout(() => { if (child.material) child.material.color.setHex(origColor); }, 150);
+                        }
+                    });
+
+                    if (cerberusHP <= 0) killCerberus();
+                }
+            }
+        }
+
+        function killMinotaur() {
+            isMinotaurDead = true;
+            if (minotaurHealthBarMesh) minotaurHealthBarMesh.visible = false;
+            playSFX(80, 0.6);
+
+            scene.remove(minotaurMesh);
+
+            hasKey = true;
+            playSFX(1000, 0.3);
+
+            const keyHud = document.getElementById('key-status');
+            keyHud.innerText = "LLAVE: POSEÍDA 🗝️";
+            keyHud.style.color = "#00FFFF";
+
+            agregarAlInventario('key', ICONS.key);
+        }
+
+        function killCerberus() {
+            isCerberusDead = true;
+            if (cerberusHealthBarMesh) cerberusHealthBarMesh.visible = false;
+            playSFX(60, 0.8);
+
+            anime({
+                targets: cerberusMesh.rotation,
+                z: Math.PI / 2,
+                duration: 900,
+                easing: 'easeOutBounce',
+                complete: () => {
+                    anime({
+                        targets: cerberusMesh.position,
+                        y: cerberusMesh.position.y - 1.5,
+                        duration: 1500,
+                        easing: 'easeInQuad',
+                        complete: () => {
+                            scene.remove(cerberusMesh);
+                        }
+                    });
+                }
+            });
+        }
+
+        function playSFX(freq, duration) {
+            if (!audioCtx) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch(e){}
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+
+            if (mixer && !isMinotaurDead) mixer.update(delta);
+            if (cerberusMixer && isCerberusAwake && !isCerberusDead) cerberusMixer.update(delta);
+
+            if (gameActive) {
+                const speed = 40.0;
+                const moveVector = new THREE.Vector3();
+
+                if (moveForward) moveVector.z -= 1;
+                if (moveBackward) moveVector.z += 1;
+                if (moveLeft) moveVector.x -= 1;
+                if (moveRight) moveVector.x += 1;
+
+                if (moveVector.lengthSq() > 0) {
+                    moveVector.normalize();
+                    moveVector.applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+
+                    if (!checkCollision(moveVector)) {
+                        cameraHolder.position.addScaledVector(moveVector, speed * delta);
+                    }
+                }
+
+                cameraHolder.position.y = groundY + 1.8;
+
+                const distFromCenter = Math.hypot(cameraHolder.position.x, cameraHolder.position.z);
+                const victoryRadius = mazeRadius * victoryRadiusMultiplier;
+                
+                if (distFromCenter > victoryRadius) {
+                    triggerVictory();
+                }
+
+                if (hasKey && !isDoorUnlocked && doorMeshes.length > 0) {
+                    doorMeshes.forEach((doorMesh) => {
+                        const doorWorldPos = new THREE.Vector3();
+                        doorMesh.getWorldPosition(doorWorldPos);
+
+                        if (cameraHolder.position.distanceTo(doorWorldPos) < 4.0) {
+                            unlockAndOpenDoor();
+                        }
+                    });
+                }
+
+                if (cerberusMesh && !isCerberusAwake && !isCerberusDead) {
+                    if (cameraHolder.position.distanceTo(cerberusMesh.position) < 8.0) {
+                        wakeUpCerberus();
+                    }
+                }
+
+                if (swordPickupMesh && !hasSword) {
+                    swordPickupMesh.rotation.y += 0.01;
+
+                    if (cameraHolder.position.distanceTo(swordPickupMesh.position) < 2.0) {
+                        hasSword = true;
+                        scene.remove(swordPickupMesh);
+                        playSFX(900, 0.3);
+
+                        agregarAlInventario('sword', ICONS.sword);
+
+                        const swordSlotIndex = inventarioSlots.indexOf('sword');
+                        if (swordSlotIndex !== -1) seleccionarSlot(swordSlotIndex);
+                    }
+                }
+
+                if (hammerPickupMesh && !hasHammer) {
+                    hammerPickupMesh.rotation.y += 0.01;
+
+                    if (cameraHolder.position.distanceTo(hammerPickupMesh.position) < 2.0) {
+                        hasHammer = true;
+                        scene.remove(hammerPickupMesh);
+                        playSFX(950, 0.3);
+
+                        agregarAlInventario('hammer', ICONS.hammer);
+
+                        const hammerSlotIndex = inventarioSlots.indexOf('hammer');
+                        if (hammerSlotIndex !== -1) seleccionarSlot(hammerSlotIndex);
+                    }
+                }
+
+                if (minotaurHealthBarMesh && !isMinotaurDead) minotaurHealthBarMesh.lookAt(cameraHolder.position);
+                if (cerberusHealthBarMesh && !isCerberusDead) cerberusHealthBarMesh.lookAt(cameraHolder.position);
+
+                if (minotaurMesh && !isMinotaurDead) {
+                    const minoSpeed = 30.0;
+                    const dirToPlayer = new THREE.Vector3().subVectors(cameraHolder.position, minotaurMesh.position);
+                    dirToPlayer.y = 0;
+                    
+                    const distance = dirToPlayer.length();
+                    dirToPlayer.normalize();
+
+                    if (distance > 2.0) {
+                        let nextPos = minotaurMesh.position.clone().addScaledVector(dirToPlayer, minoSpeed * delta);
+                        let groundData = getValidGroundData(nextPos);
+
+                        if (groundData.isWater || checkEnemyCollision(minotaurMesh.position, dirToPlayer, 3.8)) {
+                            const angleLeft = dirToPlayer.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 3);
+                            const angleRight = dirToPlayer.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -Math.PI / 3);
+                            
+                            let posLeft = minotaurMesh.position.clone().addScaledVector(angleLeft, minoSpeed * delta);
+                            let posRight = minotaurMesh.position.clone().addScaledVector(angleRight, minoSpeed * delta);
+
+                            let dataLeft = getValidGroundData(posLeft);
+                            let dataRight = getValidGroundData(posRight);
+
+                            if (!dataLeft.isWater && !checkEnemyCollision(minotaurMesh.position, angleLeft, 3.2)) {
+                                minotaurMesh.position.copy(posLeft);
+                            } else if (!dataRight.isWater && !checkEnemyCollision(minotaurMesh.position, angleRight, 3.2)) {
+                                minotaurMesh.position.copy(posRight);
+                            } else {
+                                minotaurMesh.position.copy(nextPos);
+                            }
+                        } else {
+                            minotaurMesh.position.copy(nextPos);
+                        }
+
+                        minotaurMesh.position.y = getValidGroundData(minotaurMesh.position).y;
+                        minotaurMesh.lookAt(cameraHolder.position.x, minotaurMesh.position.y, cameraHolder.position.z);
+                    } else {
+                        playerHP -= 15 * delta;
+                        updatePlayerHearts();
+                        triggerDamageFlash();
+                        if (playerHP <= 0) {
+                            triggerGameOver("¡HAS SIDO ATRAPADO Y ELIMINADO POR EL MINOTAURO!");
+                        }
+                    }
+                }
+
+                if (cerberusMesh && isCerberusAwake && !isCerberusDead) {
+                    const cerberusSpeed = 10.0;
+                    const dirToPlayer = new THREE.Vector3().subVectors(cameraHolder.position, cerberusMesh.position);
+                    dirToPlayer.y = 0;
+                    
+                    const distance = dirToPlayer.length();
+                    dirToPlayer.normalize();
+
+                    cerberusAttackTimer += delta;
+                    if (cerberusAttackTimer > 2.0) {
+                        shootFireball();
+                        cerberusAttackTimer = 0;
+                    }
+
+                    if (distance > 2.0) {
+                        let nextPos = cerberusMesh.position.clone().addScaledVector(dirToPlayer, cerberusSpeed * delta);
+                        let groundData = getValidGroundData(nextPos);
+
+                        if (groundData.isWater || checkEnemyCollision(cerberusMesh.position, dirToPlayer, 3.8)) {
+                            const angleLeft = dirToPlayer.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 3);
+                            const angleRight = dirToPlayer.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -Math.PI / 3);
+                            
+                            let posLeft = cerberusMesh.position.clone().addScaledVector(angleLeft, cerberusSpeed * delta);
+                            let posRight = cerberusMesh.position.clone().addScaledVector(angleRight, cerberusSpeed * delta);
+
+                            let dataLeft = getValidGroundData(posLeft);
+                            let dataRight = getValidGroundData(posRight);
+
+                            if (!dataLeft.isWater && !checkEnemyCollision(cerberusMesh.position, angleLeft, 3.2)) {
+                                cerberusMesh.position.copy(posLeft);
+                            } else if (!dataRight.isWater && !checkEnemyCollision(cerberusMesh.position, angleRight, 3.2)) {
+                                cerberusMesh.position.copy(posRight);
+                            }
+                        } else {
+                            cerberusMesh.position.copy(nextPos);
+                        }
+
+                        cerberusMesh.position.y = getValidGroundData(cerberusMesh.position).y;
+                        cerberusMesh.lookAt(cameraHolder.position.x, cerberusMesh.position.y, cameraHolder.position.z);
+                    } else {
+                        playerHP -= 20 * delta;
+                        updatePlayerHearts();
+                        triggerDamageFlash();
+                        if (playerHP <= 0) {
+                            triggerGameOver("¡CERBERO TE HA DEVORADO EN EL CENTRO DEL LABERINTO!");
+                        }
+                    }
+                }
+
+                // ACTUALIZACIÓN Y DETECCIÓN DE COLISIONES DE FIREBALLS
+                for (let i = activeFireballs.length - 1; i >= 0; i--) {
+                    const fb = activeFireballs[i];
+                    fb.lifeTime += delta;
+                    const fbSpeed = 18.0;
+
+                    // Mover bola de fuego
+                    fb.mesh.position.addScaledVector(fb.direction, fbSpeed * delta);
+
+                    // 1. Detección de colisión con muros/mapa
+                    if (collidableObjects.length > 0) {
+                        fireballRaycaster.set(fb.mesh.position, fb.direction);
+                        const wallHits = fireballRaycaster.intersectObjects(collidableObjects, true);
+
+                        if (wallHits.length > 0 && wallHits[0].distance < 1.2) {
+                            // Impacto con pared/laberinto
+                            playSFX(180, 0.2); // Sonido de impacto
+                            scene.remove(fb.mesh);
+                            activeFireballs.splice(i, 1);
+                            continue;
+                        }
+                    }
+
+                    // 2. Detección de colisión con el Jugador
+                    const distToPlayer = fb.mesh.position.distanceTo(cameraHolder.position);
+                    if (distToPlayer < 1.5) {
+                        playerHP -= 20;
+                        updatePlayerHearts();
+                        triggerDamageFlash();
+                        playSFX(150, 0.4);
+
+                        scene.remove(fb.mesh);
+                        activeFireballs.splice(i, 1);
+
+                        if (playerHP <= 0) {
+                            triggerGameOver("¡HAS SIDO IMPACTADO Y INCINERADO POR EL CERBERO!");
+                        }
+                        continue;
+                    }
+
+                    // 3. Tiempo de vida máximo de la bola de fuego
+                    if (fb.lifeTime > 6.0) {
+                        scene.remove(fb.mesh);
+                        activeFireballs.splice(i, 1);
+                    }
+                }
+
+                gemsArray.forEach((gem, idx) => {
+                    gem.rotation.y += 0.02;
+                    if (cameraHolder.position.distanceTo(gem.position) < 1.4) {
+                        scene.remove(gem);
+                        gemsArray.splice(idx, 1);
+                        gemsCollected++;
+                        playSFX(800, 0.15);
+                        document.getElementById('gems-val').innerText = gemsCollected;
+                    }
+                });
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+    </script>
+</body>
+</html>
